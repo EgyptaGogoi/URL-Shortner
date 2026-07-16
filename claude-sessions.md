@@ -49,6 +49,7 @@
 - Click analytics
 - Link expiry / TTL
 - Admin panel
+- Max custom aliases per URL (no user accounts = no per-user enforcement; rate limiting handles abuse — revisit if user accounts are added)
 
 ### API Surface (high level)
 
@@ -69,3 +70,58 @@ GET   /{code}         → redirect to original URL
 | D4 | Short code generation: Counter + Random hybrid (Base62) | DB auto-increment ID encoded in Base62 + random Base62 chars padded to 6 chars total. Counter guarantees uniqueness (no collision check needed), random suffix prevents enumeration. Flow: INSERT → get ID → generate code → UPDATE record. |
 
 <!-- New tasks will be appended below this line -->
+
+---
+
+## Task 2 — System Design
+
+**Status:** Complete  
+**Date:** 2026-07-17
+
+### DB Schema — `url_mappings` (PostgreSQL)
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `BIGSERIAL` | PRIMARY KEY |
+| `short_code` | `VARCHAR(10)` | UNIQUE, NOT NULL |
+| `long_url` | `TEXT` | NOT NULL |
+| `url_hash` | `VARCHAR(64)` | NOT NULL, INDEX |
+| `is_custom_alias` | `BOOLEAN` | NOT NULL, DEFAULT false |
+| `created_at` | `TIMESTAMP` | NOT NULL, DEFAULT now() |
+
+- `url_hash` = SHA-256 of `long_url` — fast deduplication without full TEXT comparison
+- `is_custom_alias = false` → system-generated (canonical entry for that URL)
+- `is_custom_alias = true` → user-provided alias (multiple allowed per URL)
+
+### Layer Structure
+
+```
+com.urlshortener
+├── controller    → receives HTTP request, delegates to service, returns response
+├── service       → all business logic: validate, deduplicate, generate code, cache
+├── repository    → Spring Data JPA interface; talks to PostgreSQL
+├── model         → UrlMapping JPA entity (maps to url_mappings table)
+├── dto           → ShortenRequest, ShortenResponse (API contract, separate from DB model)
+├── config        → RedisConfig, RateLimiterConfig
+└── exception     → InvalidUrlException (400), AliasAlreadyTakenException (409),
+                    UrlNotFoundException (404), RateLimitExceededException (429)
+```
+
+### Redis Caching Strategy (Cache-aside)
+
+- **Key:** `url:{short_code}` → **Value:** `long_url`
+- **TTL:** 1 week (604,800 seconds) — on expiry, re-fetched from PostgreSQL and re-cached
+- On `GET /{code}`: check Redis first → hit = redirect immediately, miss = query DB → cache → redirect
+
+### Rate Limiting
+
+- **Library:** Bucket4j + Redis
+- **Scope:** `POST /api/shorten` only, keyed by client IP
+- **Limit:** 10 requests per minute per IP → exceeds = `429 Too Many Requests`
+
+### Decisions Added
+
+| ID | Decision | Rationale |
+|---|---|---|
+| D5 | Redis TTL: 1 week | Mappings are permanent in DB; TTL evicts stale cache entries. Miss just re-populates from PostgreSQL — no data loss. |
+| D6 | Rate limit: 10 req/min/IP via Bucket4j + Redis | Redis already in stack — no extra infra. Bucket4j + Redis survives restarts and works across multiple instances. |
