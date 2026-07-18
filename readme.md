@@ -1,4 +1,4 @@
-# Write-up
+# One Page : Write-up
 
 ## 1. What did you ask the AI to do, and what did you write or decide yourself?
 
