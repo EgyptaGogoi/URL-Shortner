@@ -24,7 +24,7 @@ services:
 
   app:
     build:
-      context: ./url-shortener
+      context: .
     ports:
       - "8080:8080"
     environment:
