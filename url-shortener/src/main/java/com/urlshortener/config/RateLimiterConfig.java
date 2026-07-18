@@ -1,7 +1,6 @@
 package com.urlshortener.config;
 
 import io.github.bucket4j.Bandwidth;
-import io.github.bucket4j.Refill;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,12 +15,15 @@ import java.time.Duration;
 public class RateLimiterConfig {
 
     /**
-     * Classic greedy bandwidth: capacity 10, refill 10 tokens per minute.
+     * Greedy bandwidth: capacity 10, refill 10 tokens per minute.
      *
      * @return the {@link Bandwidth} bean injected into {@link com.urlshortener.service.RateLimiterService}
      */
     @Bean
     public Bandwidth rateLimitBandwidth() {
-        return Bandwidth.classic(10, Refill.greedy(10, Duration.ofMinutes(1)));
+        return Bandwidth.builder()
+            .capacity(10)
+            .refillGreedy(10, Duration.ofMinutes(1))
+            .build();
     }
 }

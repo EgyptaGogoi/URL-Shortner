@@ -3,6 +3,8 @@ package com.urlshortener.exception;
 import com.urlshortener.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -48,6 +50,19 @@ public class GlobalExceptionHandler {
             .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
             .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest().body(new ErrorResponse(message));
+    }
+
+    /** Returns 400 Bad Request when the request body is missing, malformed, or not parseable JSON. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest().body(new ErrorResponse("Request body is missing or malformed"));
+    }
+
+    /** Returns 415 Unsupported Media Type when Content-Type is absent or not application/json. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException e) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+            .body(new ErrorResponse("Content-Type must be application/json"));
     }
 
     /** Returns 500 Internal Server Error for any unhandled exception, with a generic message. */
