@@ -36,6 +36,7 @@ public class ShortenRequest {
     @Schema(
         description = "Optional preferred short code (1–10 alphanumeric characters). Omit to receive a system-generated 6-character code.",
         example = "mylink",
+        nullable = true,
         requiredMode = Schema.RequiredMode.NOT_REQUIRED
     )
     @Size(min = 1, max = 10, message = "Custom alias must be between 1 and 10 characters")
